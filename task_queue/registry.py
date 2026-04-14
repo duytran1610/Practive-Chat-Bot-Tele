@@ -1,10 +1,5 @@
 """
 task_queue/registry.py — Map TaskType → handler function.
-
-Thêm task mới:
-  1. Thêm entry vào TaskType  (task_queue/models.py)
-  2. Viết handler             (tasks/handlers.py)
-  3. Đăng ký ở đây           (TASK_REGISTRY)
 """
 
 from __future__ import annotations
@@ -18,6 +13,14 @@ from tasks.handlers import (
     handle_reverse_text,
     handle_slow_task,
 )
+from tasks.meal_handlers import (
+    handle_meal_all,
+    handle_meal_day,
+    handle_meal_register,
+    handle_meal_staff,
+    handle_meal_summary,
+    handle_meal_view,
+)
 
 if TYPE_CHECKING:
     import telebot
@@ -26,10 +29,18 @@ if TYPE_CHECKING:
 HandlerFn = Callable[["Task", "telebot.TeleBot"], None]
 
 TASK_REGISTRY: dict[TaskType, HandlerFn] = {
+    # ── Cũ ───────────────────────────────────────────────────
     TaskType.ECHO         : handle_echo,
     TaskType.REVERSE_TEXT : handle_reverse_text,
     TaskType.FETCH_JOKE   : handle_fetch_joke,
     TaskType.SLOW_TASK    : handle_slow_task,
+    # ── Báo cơm ──────────────────────────────────────────────
+    TaskType.MEAL_REGISTER: handle_meal_register,
+    TaskType.MEAL_DAY     : handle_meal_day,
+    TaskType.MEAL_ALL     : handle_meal_all,
+    TaskType.MEAL_VIEW    : handle_meal_view,
+    TaskType.MEAL_SUMMARY : handle_meal_summary,
+    TaskType.MEAL_STAFF   : handle_meal_staff,
 }
 
 

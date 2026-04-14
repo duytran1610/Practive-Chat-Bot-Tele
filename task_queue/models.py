@@ -11,10 +11,18 @@ from enum import Enum
 
 
 class TaskType(str, Enum):
+    # ── Cũ ───────────────────────────────────────────────────
     ECHO         = "echo"
     REVERSE_TEXT = "reverse_text"
     FETCH_JOKE   = "fetch_joke"
     SLOW_TASK    = "slow_task"
+    # ── Báo cơm ──────────────────────────────────────────────
+    MEAL_REGISTER = "meal_register"   # Đăng ký 1 bữa cụ thể
+    MEAL_DAY      = "meal_day"        # Đăng ký cả ngày
+    MEAL_ALL      = "meal_all"        # Đăng ký / huỷ cả tuần
+    MEAL_VIEW     = "meal_view"       # Xem báo cơm của mình
+    MEAL_SUMMARY  = "meal_summary"    # Tổng hợp cả tuần (admin)
+    MEAL_STAFF    = "meal_staff"      # Danh sách nhân viên đã báo
 
 
 class TaskStatus(str, Enum):
@@ -46,6 +54,5 @@ class Task:
     def __repr__(self) -> str:
         return (
             f"Task(id={self.short_id()}, type={self.task_type.value}, "
-            f"chat={self.chat_id}, retry={self.retry_count}/{self.max_retries}, "
-            f"status={self.status.value})"
+            f"chat={self.chat_id}, retry={self.retry_count}/{self.max_retries})"
         )
