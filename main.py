@@ -22,7 +22,7 @@ def main() -> None:
 
     logger.info("=" * 55)
     logger.info("  Telegram Meal Bot")
-    logger.info("  MongoDB : %s / %s", settings.MONGO_URI, settings.MONGO_DB_NAME)
+    logger.info("  MongoDB : %s / %s", settings.safe_mongo_uri, settings.MONGO_DB_NAME)
     logger.info("  Workers : %d", settings.NUM_WORKERS)
     logger.info("=" * 55)
 

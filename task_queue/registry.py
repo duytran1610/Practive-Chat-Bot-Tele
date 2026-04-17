@@ -7,12 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from task_queue.models import TaskType
-from tasks.handlers import (
-    handle_echo,
-    handle_fetch_joke,
-    handle_reverse_text,
-    handle_slow_task,
-)
+from tasks.handlers import handle_slow_task
 from tasks.meal_handlers import (
     handle_meal_all,
     handle_meal_day,
@@ -30,9 +25,6 @@ HandlerFn = Callable[["Task", "telebot.TeleBot"], None]
 
 TASK_REGISTRY: dict[TaskType, HandlerFn] = {
     # ── Cũ ───────────────────────────────────────────────────
-    TaskType.ECHO         : handle_echo,
-    TaskType.REVERSE_TEXT : handle_reverse_text,
-    TaskType.FETCH_JOKE   : handle_fetch_joke,
     TaskType.SLOW_TASK    : handle_slow_task,
     # ── Báo cơm ──────────────────────────────────────────────
     TaskType.MEAL_REGISTER: handle_meal_register,

@@ -1,134 +1,141 @@
-"""
-tasks/meal_handlers.py — Handler xử lý các task báo cơm.
+﻿"""
+tasks/meal_handlers.py - Handler xu ly cac task bao com.
 
-Mỗi handler:
-  1. Đọc payload từ Task
-  2. Gọi MealRepository để đọc/ghi MongoDB
-  3. bot.send_message() để trả kết quả về user
+Moi handler:
+  1. Doc payload tu Task
+  2. Goi MealRepository de doc/ghi MongoDB
+  3. bot.send_message() de tra ket qua ve user
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 import telebot
 
 from db import MealRepository
+from db.meal_rules import (
+    MealRegistrationError,
+    ensure_week_has_open_days,
+    format_days_vi,
+)
+from db.models import TZ_VN
 from task_queue.models import Task
 
 logger = logging.getLogger(__name__)
 
 
 def _repo() -> MealRepository:
-    """Factory: tạo MealRepository mới mỗi lần gọi (dùng chung connection pool)."""
+    """Factory: tao MealRepository moi moi lan goi."""
     return MealRepository()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MEAL_REGISTER — đăng ký / huỷ 1 bữa cụ thể
-# payload: {user_id, username, day, meal, value}
-# ─────────────────────────────────────────────────────────────────────────────
+def _send_business_error(task: Task, bot: telebot.TeleBot, error: MealRegistrationError) -> None:
+    """Gui loi nghiep vu cho user ma khong retry."""
+    bot.send_message(task.chat_id, f"⛔ {error}", parse_mode="Markdown")
+
+
+def _refresh_day_menu(task: Task, bot: telebot.TeleBot, day: str, doc: dict) -> None:
+    """Cap nhat lai menu cua ngay sau khi doi trang thai."""
+    message_id = task.payload.get("message_id")
+    if not message_id:
+        return
+
+    from bot.meal_handlers import build_day_menu_keyboard, build_day_menu_text
+
+    meal_states = doc.get("meals", {}).get(day, {})
+    bot.edit_message_text(
+        chat_id=task.chat_id,
+        message_id=message_id,
+        text=build_day_menu_text(day, meal_states=meal_states),
+        parse_mode="Markdown",
+        reply_markup=build_day_menu_keyboard(day, meal_states=meal_states),
+    )
+
 
 def handle_meal_register(task: Task, bot: telebot.TeleBot) -> None:
-    p        = task.payload
-    repo     = _repo()
-    doc      = repo.set_meal(
-        user_id  = p["user_id"],
-        username = p["username"],
-        day      = p["day"],
-        meal     = p["meal"],
-        value    = p["value"],
-    )
-    summary = _format_meal_summary(doc)
-    status  = "✅ Đã đăng ký" if p["value"] else "❌ Đã huỷ"
-    bot.send_message(
-        task.chat_id,
-        f"{status} *{p['meal_vi']}* ngày *{p['day_vi']}*\n\n{summary}",
-        parse_mode="Markdown",
-    )
+    p = task.payload
+    repo = _repo()
+    now = datetime.now(TZ_VN)
+    try:
+        doc = repo.set_meal(
+            user_id=p["user_id"],
+            username=p["username"],
+            day=p["day"],
+            meal=p["meal"],
+            value=p["value"],
+            now=now,
+        )
+    except MealRegistrationError as error:
+        _send_business_error(task, bot, error)
+        return
 
+    _refresh_day_menu(task, bot, p["day"], doc)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MEAL_DAY — đăng ký cả ngày (sáng + trưa + tối)
-# payload: {user_id, username, day, values: {morning, afternoon, evening}}
-# ─────────────────────────────────────────────────────────────────────────────
 
 def handle_meal_day(task: Task, bot: telebot.TeleBot) -> None:
-    p    = task.payload
+    p = task.payload
     repo = _repo()
-    doc  = repo.set_day(
-        user_id  = p["user_id"],
-        username = p["username"],
-        day      = p["day"],
-        values   = p["values"],
-    )
-    summary = _format_meal_summary(doc)
-    bot.send_message(
-        task.chat_id,
-        f"✅ Đã cập nhật *{p['day_vi']}*\n\n{summary}",
-        parse_mode="Markdown",
-    )
+    now = datetime.now(TZ_VN)
+    try:
+        doc = repo.set_day(
+            user_id=p["user_id"],
+            username=p["username"],
+            day=p["day"],
+            values=p["values"],
+            now=now,
+        )
+    except MealRegistrationError as error:
+        _send_business_error(task, bot, error)
+        return
 
+    _refresh_day_menu(task, bot, p["day"], doc)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MEAL_ALL — đăng ký hoặc huỷ toàn bộ tuần
-# payload: {user_id, username, value}
-# ─────────────────────────────────────────────────────────────────────────────
 
 def handle_meal_all(task: Task, bot: telebot.TeleBot) -> None:
-    p    = task.payload
+    p = task.payload
     repo = _repo()
-    doc  = repo.set_all(
-        user_id  = p["user_id"],
-        username = p["username"],
-        value    = p["value"],
-    )
-    action  = "✅ Đã đăng ký" if p["value"] else "❌ Đã huỷ"
+    now = datetime.now(TZ_VN)
+    try:
+        open_days = ensure_week_has_open_days(now=now)
+        doc = repo.set_all(
+            user_id=p["user_id"],
+            username=p["username"],
+            value=p["value"],
+            now=now,
+        )
+    except MealRegistrationError as error:
+        _send_business_error(task, bot, error)
+        return
+
+    action = "✅ Đã đăng ký" if p["value"] else "❌ Đã hủy"
     summary = _format_meal_summary(doc)
     bot.send_message(
         task.chat_id,
-        f"{action} *toàn bộ bữa trong tuần*\n\n{summary}",
+        f"{action} các ngày còn mở: *{format_days_vi(open_days)}*\n\n{summary}",
         parse_mode="Markdown",
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MEAL_VIEW — xem báo cơm tuần này của chính mình
-# payload: {user_id, username}
-# ─────────────────────────────────────────────────────────────────────────────
-
 def handle_meal_view(task: Task, bot: telebot.TeleBot) -> None:
-    p       = task.payload
-    repo    = _repo()
+    p = task.payload
+    repo = _repo()
     summary = repo.get_my_report(p["user_id"], p["username"])
     bot.send_message(task.chat_id, summary, parse_mode="Markdown")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MEAL_SUMMARY — tổng hợp cả tuần (admin)
-# payload: {}
-# ─────────────────────────────────────────────────────────────────────────────
-
 def handle_meal_summary(task: Task, bot: telebot.TeleBot) -> None:
-    repo    = _repo()
+    repo = _repo()
     summary = repo.get_week_summary()
     bot.send_message(task.chat_id, summary, parse_mode="Markdown")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MEAL_STAFF — danh sách nhân viên đã báo cơm
-# payload: {}
-# ─────────────────────────────────────────────────────────────────────────────
-
 def handle_meal_staff(task: Task, bot: telebot.TeleBot) -> None:
-    repo    = _repo()
+    repo = _repo()
     summary = repo.get_staff_list()
     bot.send_message(task.chat_id, summary, parse_mode="Markdown")
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Private helper — dùng lại format từ db/models.py
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _format_meal_summary(doc: dict) -> str:
     from db.models import format_meal_summary

@@ -1,11 +1,11 @@
-"""
-db/connection.py — MongoDB connection singleton.
+﻿"""
+db/connection.py - MongoDB connection singleton.
 
-Dùng MongoClient dạng singleton để tái sử dụng connection pool
-thay vì tạo connection mới mỗi lần gọi.
+Dung MongoClient dang singleton de tai su dung connection pool
+thay vi tao connection moi moi lan goi.
 
-pymongo MongoClient là thread-safe — an toàn khi dùng chung
-giữa main thread, telebot handler threads và worker threads.
+pymongo MongoClient la thread-safe - an toan khi dung chung
+giua main thread, telebot handler threads va worker threads.
 """
 
 from __future__ import annotations
@@ -25,38 +25,38 @@ logger = logging.getLogger(__name__)
 @lru_cache(maxsize=1)
 def get_client() -> MongoClient:
     """
-    Trả về MongoClient singleton (tạo 1 lần, tái dùng mãi).
-    lru_cache đảm bảo chỉ tạo 1 instance dù gọi bao nhiêu lần.
+    Tra ve MongoClient singleton (tao 1 lan, tai dung mai).
+    lru_cache dam bao chi tao 1 instance du goi bao nhieu lan.
     """
     client = MongoClient(
         settings.MONGO_URI,
-        serverSelectionTimeoutMS=5000,   # timeout khi không kết nối được
+        serverSelectionTimeoutMS=5000,
         connectTimeoutMS=5000,
-        maxPoolSize=20,                  # tối đa 20 connections trong pool
-        minPoolSize=2,                   # giữ ít nhất 2 connections sẵn sàng
+        maxPoolSize=20,
+        minPoolSize=2,
     )
-    logger.info("MongoDB client created → %s", settings.MONGO_URI)
+    logger.info("MongoDB client created -> %s", settings.safe_mongo_uri)
     return client
 
 
 def get_db() -> Database:
-    """Trả về Database instance theo MONGO_DB_NAME trong config."""
+    """Tra ve Database instance theo MONGO_DB_NAME trong config."""
     return get_client()[settings.MONGO_DB_NAME]
 
 
 def ping() -> bool:
-    """Kiểm tra kết nối MongoDB. Trả về True nếu OK."""
+    """Kiem tra ket noi MongoDB. Tra ve True neu OK."""
     try:
         get_client().admin.command("ping")
         logger.info("MongoDB ping: OK")
         return True
-    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
-        logger.error("MongoDB ping failed: %s", e)
+    except (ConnectionFailure, ServerSelectionTimeoutError) as error:
+        logger.error("MongoDB ping failed: %s", error)
         return False
 
 
 def close() -> None:
-    """Đóng connection pool khi shutdown."""
+    """Dong connection pool khi shutdown."""
     try:
         get_client().close()
         get_client.cache_clear()

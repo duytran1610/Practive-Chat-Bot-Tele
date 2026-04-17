@@ -1,8 +1,8 @@
-"""
-bot/handlers.py — Telegram command handlers (THIN layer).
+﻿"""
+bot/handlers.py - Telegram command handlers (THIN layer).
 
-Rule: handler chỉ parse input → build Task → enqueue → ack user.
-Không được làm heavy work ở đây.
+Rule: handler chi parse input -> build Task -> enqueue -> ack user.
+Khong duoc lam heavy work o day.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import logging
 
 import telebot
 
+from bot.meal_handlers import show_meal_home
 from config import settings
 from task_queue.models import Task, TaskType
 from task_queue.producer import TaskQueue
@@ -19,49 +20,13 @@ logger = logging.getLogger(__name__)
 
 
 def cmd_start(message: telebot.types.Message, bot: telebot.TeleBot) -> None:
-    bot.send_message(
+    show_meal_home(
         message.chat.id,
-        "👋 *Welcome to QueueBot!*\n\n"
-        "Requests được xử lý bất đồng bộ bởi worker pool.\n\n"
-        "*Commands:*\n"
-        "/echo `<text>`     — Echo lại text\n"
-        "/reverse `<text>`  — Đảo ngược text\n"
-        "/joke              — Lấy joke ngẫu nhiên\n"
-        "/slow `[seconds]`  — Giả lập tác vụ chậm (1–30s)\n"
-        "/status            — Thống kê queue\n",
-        parse_mode="Markdown",
-    )
-
-
-def cmd_echo(message: telebot.types.Message, bot: telebot.TeleBot, task_queue: TaskQueue) -> None:
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
-        bot.reply_to(message, "Usage: /echo <text>")
-        return
-    _enqueue_and_ack(
-        Task(task_type=TaskType.ECHO, chat_id=message.chat.id,
-             payload={"text": parts[1]}, max_retries=settings.MAX_RETRIES),
-        task_queue, message, bot,
-    )
-
-
-def cmd_reverse(message: telebot.types.Message, bot: telebot.TeleBot, task_queue: TaskQueue) -> None:
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
-        bot.reply_to(message, "Usage: /reverse <text>")
-        return
-    _enqueue_and_ack(
-        Task(task_type=TaskType.REVERSE_TEXT, chat_id=message.chat.id,
-             payload={"text": parts[1]}, max_retries=settings.MAX_RETRIES),
-        task_queue, message, bot,
-    )
-
-
-def cmd_joke(message: telebot.types.Message, bot: telebot.TeleBot, task_queue: TaskQueue) -> None:
-    _enqueue_and_ack(
-        Task(task_type=TaskType.FETCH_JOKE, chat_id=message.chat.id,
-             max_retries=settings.MAX_RETRIES),
-        task_queue, message, bot,
+        bot,
+        intro_text=(
+            "👋 *Chào mừng đến QueueBot*\n"
+            "Bot hỗ trợ báo cơm theo tuần ngay trong Telegram."
+        ),
     )
 
 
@@ -72,7 +37,7 @@ def cmd_slow(message: telebot.types.Message, bot: telebot.TeleBot, task_queue: T
         try:
             duration = max(1, min(int(parts[1]), 30))
         except ValueError:
-            bot.reply_to(message, "Usage: /slow [seconds]  (1–30)")
+            bot.reply_to(message, "Usage: /slow [seconds]  (1-30)")
             return
     _enqueue_and_ack(
         Task(task_type=TaskType.SLOW_TASK, chat_id=message.chat.id,
@@ -96,15 +61,14 @@ def cmd_status(message: telebot.types.Message, bot: telebot.TeleBot, task_queue:
 
 
 def on_text_message(message: telebot.types.Message, bot: telebot.TeleBot, task_queue: TaskQueue) -> None:
-    """Plain text không phải command → xử lý như echo."""
-    _enqueue_and_ack(
-        Task(task_type=TaskType.ECHO, chat_id=message.chat.id,
-             payload={"text": message.text or ""}, max_retries=settings.MAX_RETRIES),
-        task_queue, message, bot,
+    """Plain text khong phai command -> huong dan user dung menu dung chuc nang."""
+    del task_queue
+    bot.reply_to(
+        message,
+        "Chỉ hỗ trợ các lệnh đã đăng ký. Gõ `/` để xem danh sách lệnh hoặc dùng /baocom.",
+        parse_mode="Markdown",
     )
 
-
-# ── Helper ────────────────────────────────────────────────────────────────────
 
 def _enqueue_and_ack(
     task: Task,
